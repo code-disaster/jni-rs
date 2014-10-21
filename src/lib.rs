@@ -1,15 +1,4 @@
 #![crate_name = "jni"]
-#![experimental]
-#![crate_type = "rlib"]
-#![crate_type = "dylib"]
-#![license = "MIT/ASL2"]
-#![doc(html_logo_url = "http://www.rust-lang.org/logos/rust-logo-128x128-blk-v2.png",
-       html_favicon_url = "http://www.rust-lang.org/favicon.ico",
-       html_root_url = "http://doc.rust-lang.org/0.12.0/",
-       html_playground_url = "http://play.rust-lang.org/")]
-#![feature(globs, phase)]
-#![feature(import_shadowing)]
-//#![deny(missing_doc)]
 
 extern crate alloc;
 extern crate libc;
@@ -18,8 +7,8 @@ use alloc::heap::{allocate, deallocate};
 use libc::{c_char, c_long, c_longlong, c_void};
 use std::c_vec::CVec;
 use std::dynamic_lib::DynamicLibrary;
-use std::{mem, ptr};
-use std::c_str::CString;
+use std::mem::{align_of, size_of, transmute};
+use std::ptr;
 
 
 // platform dependent JNI Types (jni_md.h)
@@ -92,13 +81,17 @@ pub static JNI_EINVAL:Jint      = -6;
 pub static JNI_COMMIT:Jint      = 1;
 pub static JNI_ABORT:Jint       = 2;
 
+//static JNI_VERSION_1_1:Jint   = 0x00010001;
+//static JNI_VERSION_1_2:Jint   = 0x00010002;
+//static JNI_VERSION_1_4:Jint   = 0x00010004;
+static JNI_VERSION_1_6:Jint     = 0x00010006;
 
-#[repr(C)]
-pub struct JNINativeMethod {
-	name: *mut c_char,
-	signature: *mut c_char,
-	fn_ptr: *mut u8
-}
+//#[repr(C)]
+//struct JNINativeMethod {
+//	name: *mut c_char,
+//	signature: *mut c_char,
+//	fn_ptr: *mut u8
+//}
 
 #[repr(C)]
 struct JNINativeInterface {
@@ -414,12 +407,34 @@ struct JavaVMOption {
 	extra_info: *mut u8
 }
 
+impl Drop for JavaVMOption {
+	fn drop(&mut self) {
+		let size = self.extra_info as uint;
+		let align = align_of::<*mut i8>();
+
+		unsafe {
+			deallocate(transmute::<_, *mut u8>(self.option_string), size, align)
+		};
+	}
+}
+
 #[repr(C)]
 struct JavaVMInitArgs {
 	version: Jint,
 	n_options: Jint,
 	options: *mut JavaVMOption,
 	ignore_unrecognized: Jboolean
+}
+
+impl Drop for JavaVMInitArgs {
+    fn drop(&mut self) {
+		let size = size_of::<JavaVMOption>();
+		let align = align_of::<*mut JavaVMOption>();
+
+		unsafe {
+			deallocate(transmute::<_, *mut u8>(self.options), self.n_options as uint * size, align)
+		};
+    }
 }
 
 //#[repr(C)]
@@ -486,11 +501,11 @@ impl JNI {
 	}
 
 	pub fn init_vm_args(&mut self, n_options:uint) {
-		let size = mem::size_of::<JavaVMOption>();
-		let align = mem::align_of::<*mut JavaVMOption>();
+		let size = size_of::<JavaVMOption>();
+		let align = align_of::<*mut JavaVMOption>();
 
 		let unsafe_mem:*mut JavaVMOption = unsafe {
-			mem::transmute::<_, *mut JavaVMOption>(allocate(n_options * size, align))
+			transmute::<_, *mut JavaVMOption>(allocate(n_options * size, align))
 		};
 
 		let mut v:CVec<JavaVMOption> = unsafe {
@@ -513,7 +528,7 @@ impl JNI {
 
 	pub fn push_vm_arg(&mut self, index:uint, option:&str) {
 		let size = option.len() + 1;
-		let align = mem::align_of::<*mut i8>();
+		let align = align_of::<*mut i8>();
 
 		let unsafe_mem:*mut u8 = unsafe {
 			allocate(size, align)
@@ -529,7 +544,10 @@ impl JNI {
 
 			match v.get_mut(index) {
 				Some(opt) => {
-					opt.option_string = mem::transmute::<_, *const i8>(unsafe_mem);
+					opt.option_string = transmute::<_, *const i8>(unsafe_mem);
+					// hack: store allocation size in extra_info
+					let len:Jpointer = size as Jpointer;
+					opt.extra_info = transmute::<_, *mut u8>(len);
 				},
 				None => fail!("Out of bounds for VM arguments!")
 			}
@@ -540,7 +558,7 @@ impl JNI {
 		let jni_create_java_vm:JNICreateJavaVM = unsafe {
 			match self.libjvm.symbol("JNI_CreateJavaVM") {
 				Err(error) => return Err(format!("Could not load function JNI_CreateJavaVM: {}", error)),
-				Ok(jni_create_java_vm) => mem::transmute::<*mut u8, _>(jni_create_java_vm)
+				Ok(jni_create_java_vm) => transmute::<*mut u8, _>(jni_create_java_vm)
 			}
 		};
 
@@ -593,7 +611,7 @@ impl JNI {
 			(*(*env).functions).find_class
 		};
 
-		unsafe { mem::transmute::<_, Jpointer>(call(env, name.to_c_str().as_ptr())) }
+		unsafe { transmute::<_, Jpointer>(call(env, name.to_c_str().as_ptr())) }
 	}
 
 	pub fn exception_occured(&self) -> Jthrowable {
@@ -603,7 +621,7 @@ impl JNI {
 			(*(*env).functions).exception_occured
 		};
 
-		unsafe { mem::transmute::<_, Jpointer>(call(env)) }
+		unsafe { transmute::<_, Jpointer>(call(env)) }
 	}
 
 	pub fn exception_describe(&self) {
@@ -634,19 +652,19 @@ impl JNI {
 		};
 
 		let clazz_ptr = unsafe {
-			mem::transmute::<_, *mut u8>(clazz)
+			transmute::<_, *mut u8>(clazz)
 		};
 
 		let method_ptr = unsafe {
-			mem::transmute::<_, *mut u8>(method)
+			transmute::<_, *mut u8>(method)
 		};
 
 		let args_ptr = unsafe {
-			mem::transmute::<_, *const u8>(args.as_ptr())
+			transmute::<_, *const u8>(args.as_ptr())
 		};
 
 		unsafe {
-			mem::transmute::<_, Jpointer>(call(env, clazz_ptr, method_ptr, args_ptr))
+			transmute::<_, Jpointer>(call(env, clazz_ptr, method_ptr, args_ptr))
 		}
 	}
 
@@ -658,11 +676,11 @@ impl JNI {
 		};
 
 		let clazz_ptr = unsafe {
-			mem::transmute::<_, *mut u8>(clazz)
+			transmute::<_, *mut u8>(clazz)
 		};
 
 		unsafe {
-			mem::transmute::<_, Jpointer>(call(env, clazz_ptr, name.to_c_str().as_ptr(), sig.to_c_str().as_ptr()))
+			transmute::<_, Jpointer>(call(env, clazz_ptr, name.to_c_str().as_ptr(), sig.to_c_str().as_ptr()))
 		}
 	}
 
@@ -674,19 +692,19 @@ impl JNI {
 		};
 
 		let obj_ptr = unsafe {
-			mem::transmute::<_, *mut u8>(obj)
+			transmute::<_, *mut u8>(obj)
 		};
 
 		let method_ptr = unsafe {
-			mem::transmute::<_, *mut u8>(method)
+			transmute::<_, *mut u8>(method)
 		};
 
 		let args_ptr = unsafe {
-			mem::transmute::<_, *const u8>(args.as_ptr())
+			transmute::<_, *const u8>(args.as_ptr())
 		};
 
 		unsafe {
-			mem::transmute::<_, Jpointer>(call(env, obj_ptr, method_ptr, args_ptr))
+			transmute::<_, Jpointer>(call(env, obj_ptr, method_ptr, args_ptr))
 		}
 	}
 
@@ -698,15 +716,15 @@ impl JNI {
 		};
 
 		let obj_ptr = unsafe {
-			mem::transmute::<_, *mut u8>(obj)
+			transmute::<_, *mut u8>(obj)
 		};
 
 		let method_ptr = unsafe {
-			mem::transmute::<_, *mut u8>(method)
+			transmute::<_, *mut u8>(method)
 		};
 
 		let args_ptr = unsafe {
-			mem::transmute::<_, *const u8>(args.as_ptr())
+			transmute::<_, *const u8>(args.as_ptr())
 		};
 
 		call(env, obj_ptr, method_ptr, args_ptr)
@@ -720,11 +738,11 @@ impl JNI {
 		};
 
 		let clazz_ptr = unsafe {
-			mem::transmute::<_, *mut u8>(clazz)
+			transmute::<_, *mut u8>(clazz)
 		};
 
 		unsafe {
-			mem::transmute::<_, Jpointer>(call(env, clazz_ptr, name.to_c_str().as_ptr(), sig.to_c_str().as_ptr()))
+			transmute::<_, Jpointer>(call(env, clazz_ptr, name.to_c_str().as_ptr(), sig.to_c_str().as_ptr()))
 		}
 	}
 
@@ -736,19 +754,19 @@ impl JNI {
 		};
 
 		let clazz_ptr = unsafe {
-			mem::transmute::<_, *mut u8>(clazz)
+			transmute::<_, *mut u8>(clazz)
 		};
 
 		let method_ptr = unsafe {
-			mem::transmute::<_, *mut u8>(method)
+			transmute::<_, *mut u8>(method)
 		};
 
 		let args_ptr = unsafe {
-			mem::transmute::<_, *const u8>(args.as_ptr())
+			transmute::<_, *const u8>(args.as_ptr())
 		};
 
 		unsafe {
-			mem::transmute::<_, Jpointer>(call(env, clazz_ptr, method_ptr, args_ptr))
+			transmute::<_, Jpointer>(call(env, clazz_ptr, method_ptr, args_ptr))
 		}
     }
 
@@ -760,15 +778,15 @@ impl JNI {
 		};
 
 		let clazz_ptr = unsafe {
-			mem::transmute::<_, *mut u8>(clazz)
+			transmute::<_, *mut u8>(clazz)
 		};
 
 		let method_ptr = unsafe {
-			mem::transmute::<_, *mut u8>(method)
+			transmute::<_, *mut u8>(method)
 		};
 
 		let args_ptr = unsafe {
-			mem::transmute::<_, *const u8>(args.as_ptr())
+			transmute::<_, *const u8>(args.as_ptr())
 		};
 
 		call(env, clazz_ptr, method_ptr, args_ptr)
@@ -781,7 +799,7 @@ impl JNI {
 			(*(*env).functions).new_string_utf
 		};
 
-		unsafe { mem::transmute::<_, Jpointer>(call(env, utf.to_c_str().as_ptr())) }
+		unsafe { transmute::<_, Jpointer>(call(env, utf.to_c_str().as_ptr())) }
     }
 
 	pub fn new_object_array(&self, len:Jsize, clazz:Jclass, init:Jobject) -> JobjectArray {
@@ -791,10 +809,10 @@ impl JNI {
 			(*(*env).functions).new_object_array
 		};
 
-		let clazz_ptr = unsafe { mem::transmute::<_, *mut u8>(clazz) };
-		let init_ptr = unsafe { mem::transmute::<_, *mut u8>(init) };
+		let clazz_ptr = unsafe { transmute::<_, *mut u8>(clazz) };
+		let init_ptr = unsafe { transmute::<_, *mut u8>(init) };
 
-		unsafe { mem::transmute::<_, Jpointer>(call(env, len, clazz_ptr, init_ptr)) }
+		unsafe { transmute::<_, Jpointer>(call(env, len, clazz_ptr, init_ptr)) }
 	}
 
 	pub fn set_object_array_element(&self, array:JobjectArray, index:Jsize, val:Jobject) {
@@ -804,8 +822,8 @@ impl JNI {
 			(*(*env).functions).set_object_array_element
 		};
 
-		let array_ptr = unsafe { mem::transmute::<_, *mut u8>(array) };
-		let val_ptr = unsafe { mem::transmute::<_, *mut u8>(val) };
+		let array_ptr = unsafe { transmute::<_, *mut u8>(array) };
+		let val_ptr = unsafe { transmute::<_, *mut u8>(val) };
 
 		call(env, array_ptr, index, val_ptr)
 	}
@@ -814,8 +832,3 @@ impl JNI {
 		p == 0u64
 	}
 }
-
-pub static JNI_VERSION_1_1:Jint = 0x00010001;
-pub static JNI_VERSION_1_2:Jint = 0x00010002;
-pub static JNI_VERSION_1_4:Jint = 0x00010004;
-pub static JNI_VERSION_1_6:Jint = 0x00010006;
