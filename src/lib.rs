@@ -103,7 +103,7 @@ struct JNINativeInterface {
 
 	get_version: fn(env:*mut JNIEnv) -> Jint,
 
-	define_class: fn(env:*const JNIEnv, name:*const c_char, loader:Jobject, buf:*const Jbyte, len:Jsize) -> Jclass,
+	define_class: fn(env:*mut JNIEnv, name:*const c_char, loader:Jobject, buf:*const Jbyte, len:Jsize) -> Jclass, // not implemented
 
 	find_class: extern fn(env:*mut JNIEnv, name:*const c_char) -> *mut u8,
 
@@ -116,9 +116,9 @@ struct JNINativeInterface {
 	
 	throw: fn() -> Jint, // not implemented
 	throw_new: fn() -> Jint, // not implemented
-	exception_occured: fn() -> Jint, // not implemented
-	exception_describe: fn() -> Jint, // not implemented
-	exception_clear: fn() -> Jint, // not implemented
+	exception_occured: fn(env:*mut JNIEnv) -> *mut u8,
+	exception_describe: fn(env:*mut JNIEnv),
+	exception_clear: fn(env:*mut JNIEnv),
 	fatal_error: fn() -> Jint, // not implemented
 
 	push_local_frame: fn() -> Jint, // not implemented
@@ -132,18 +132,18 @@ struct JNINativeInterface {
 	ensure_local_capacity: fn() -> Jint, // not implemented
 
 	alloc_object: fn() -> Jint, // not implemented
-	new_object: fn() -> Jint, // not implemented
+	new_object: fn() -> Jint, // not implemented,
 	new_object_v: fn() -> Jint, // not implemented
-	new_object_a: fn() -> Jint, // not implemented
+	new_object_a: fn(env:*mut JNIEnv, clazz:*mut u8, method:*mut u8, args:*const u8) -> *mut u8,
 
 	get_object_class: fn() -> Jint, // not implemented
 	is_instance_of: fn() -> Jint, // not implemented
 
-	get_method_id: fn() -> Jint, // not implemented
+	get_method_id: fn(env:*mut JNIEnv, clazz:*mut u8, name:*const c_char, sig:*const c_char) -> *mut u8,
 
 	call_object_method: fn() -> Jint, // not implemented
 	call_object_method_v: fn() -> Jint, // not implemented
-	call_object_method_a: fn() -> Jint, // not implemented
+	call_object_method_a: fn(env:*mut JNIEnv, obj:*mut u8, method:*mut u8, args:*const u8) -> *mut u8,
 
 	call_boolean_method: fn() -> Jint, // not implemented
 	call_boolean_method_v: fn() -> Jint, // not implemented
@@ -179,7 +179,7 @@ struct JNINativeInterface {
 
 	call_void_method: fn() -> Jint, // not implemented
 	call_void_method_v: fn() -> Jint, // not implemented
-	call_void_method_a: fn() -> Jint, // not implemented
+	call_void_method_a: fn(env:*mut JNIEnv, obj:*mut u8, method:*mut u8, args:*const u8),
 
 	call_nonvirtual_object_method: fn() -> Jint, // not implemented
 	call_nonvirtual_object_method_v: fn() -> Jint, // not implemented
@@ -243,11 +243,11 @@ struct JNINativeInterface {
 	set_float_field: fn() -> Jint, // not implemented
 	set_double_field: fn() -> Jint, // not implemented
 
-	get_static_method_id: fn(env:*mut JNIEnv, clazz:Jpointer, name:*const c_char, sig:*const c_char) -> JmethodID,
+	get_static_method_id: fn(env:*mut JNIEnv, clazz:*mut u8, name:*const c_char, sig:*const c_char) -> *mut u8,
 
 	call_static_object_method: fn() -> Jint, // not implemented
 	call_static_object_method_v: fn() -> Jint, // not implemented
-	call_static_object_method_a: fn() -> Jint, // not implemented
+	call_static_object_method_a: fn(env:*mut JNIEnv, clazz:*mut u8, method:*mut u8, args:*const u8) -> *mut u8,
 
 	call_static_boolean_method: fn() -> Jint, // not implemented
 	call_static_boolean_method_v: fn() -> Jint, // not implemented
@@ -283,7 +283,7 @@ struct JNINativeInterface {
 
 	call_static_void_method: fn() -> Jint, // not implemented
 	call_static_void_method_v: fn() -> Jint, // not implemented
-	call_static_void_method_a: fn() -> Jint, // not implemented
+	call_static_void_method_a: fn(env:*mut JNIEnv, clazz:*mut u8, method:*mut u8, args:*const u8),
 
 	get_static_field_id: fn() -> Jint, // not implemented
 
@@ -312,16 +312,16 @@ struct JNINativeInterface {
 	get_string_chars: fn() -> Jint, // not implemented
 	release_string_chars: fn() -> Jint, // not implemented
 
-	new_string_utf: fn() -> Jint, // not implemented
+	new_string_utf: fn(env:*mut JNIEnv, utf:*const c_char) -> *mut u8,
 	get_string_utf_length: fn() -> Jint, // not implemented
 	get_string_utf_chars: fn() -> Jint, // not implemented
 	release_string_utf_chars: fn() -> Jint, // not implemented
 
 	get_array_length: fn() -> Jint, // not implemented
 
-	new_object_array: fn() -> Jint, // not implemented
+	new_object_array: fn(env:*mut JNIEnv, len:Jsize, clazz:*mut u8, init:*mut u8) -> *mut u8,
 	get_object_array_element: fn() -> Jint, // not implemented
-	set_object_array_element: fn() -> Jint, // not implemented
+	set_object_array_element: fn(env:*mut JNIEnv, array:*mut u8, index:Jsize, val:*mut u8),
 
 	new_boolean_array: fn() -> Jint, // not implemented
 	new_byte_array: fn() -> Jint, // not implemented
@@ -405,7 +405,7 @@ pub struct JNIEnv {
 #[repr(C)]
 pub struct JavaVMOption {
 	pub option_string: *const c_char,
-	pub extra_info: *const u8
+	pub extra_info: *mut u8
 }
 
 #[repr(C)]
@@ -416,43 +416,14 @@ pub struct JavaVMInitArgs {
 	pub ignore_unrecognized: Jboolean
 }
 
-impl Drop for JavaVMInitArgs {
+/*impl Drop for JavaVMInitArgs {
 	fn drop(&mut self) {
 		unsafe {
 			let unsafe_mem = mem::transmute::<_, _>(self.options);
 			deallocate(unsafe_mem, self.n_options as uint * mem::size_of::<JavaVMOption>(), mem::align_of::<JavaVMOption>());
 		}
 	}
-}
-
-impl JavaVMInitArgs {
-	pub fn new(n_options:uint) -> Result<JavaVMInitArgs, String> {
-		unsafe {
-			let unsafe_mem = allocate(n_options * mem::size_of::<JavaVMOption>(), mem::align_of::<JavaVMOption>());
-
-			Ok(JavaVMInitArgs {
-				version: JNI_VERSION_1_6,
-				n_options: n_options as Jint,
-				options: mem::transmute::<_, _>(unsafe_mem),
-				ignore_unrecognized: JNI_FALSE
-			})
-		}
-	}
-
-	pub fn push(&mut self, index:uint, option:&String) {
-		unsafe {
-			let mut v = CVec::new(self.options, self.n_options as uint);
-			let opt = v.get_mut(index);
-			match opt {
-				Some(opt) => {
-					opt.option_string = option.to_c_str().unwrap();
-					opt.extra_info = ptr::null();
-				},
-				None => fail!("Out of bounds for VM arguments!")
-			}
-		}
-	}
-}
+}*/
 
 #[repr(C)]
 pub struct JavaVMAttachArgs {
@@ -489,6 +460,7 @@ type JNICreateJavaVM = extern "C" fn(*mut(*mut JavaVM), *mut(*mut JNIEnv), *cons
 
 pub struct JNI {
 	libjvm:DynamicLibrary,
+	vm_init_args:Box<JavaVMInitArgs>,
 	jvm:Box<*mut JavaVM>,
 	env:Box<*mut JNIEnv>
 }
@@ -500,10 +472,71 @@ impl JNI {
 			Ok(libjvm) => libjvm
 		};
 
-		Ok(JNI {libjvm: libjvm, jvm: box ptr::null_mut(), env: box ptr::null_mut()})
+		Ok(JNI {
+			libjvm: libjvm,
+			vm_init_args: box JavaVMInitArgs {
+				version: JNI_VERSION_1_6,
+				n_options: 0,
+				options: ptr::null_mut(),
+				ignore_unrecognized: JNI_FALSE
+			},
+			jvm: box ptr::null_mut(),
+			env: box ptr::null_mut()
+		})
 	}
 
-	pub fn load_jvm(&mut self, args:&JavaVMInitArgs) -> Result<&mut JNI, String> {
+	pub fn init_vm_args(&mut self, n_options:uint) {
+		let size = mem::size_of::<JavaVMOption>();
+		let align = mem::align_of::<*mut JavaVMOption>();
+
+		let unsafe_mem:*mut JavaVMOption = unsafe {
+			mem::transmute::<_, *mut JavaVMOption>(allocate(n_options * size, align))
+		};
+
+		let mut v:CVec<JavaVMOption> = unsafe {
+			CVec::new(unsafe_mem, n_options)
+		};
+
+		for i in range(0u, n_options) {
+			match v.get_mut(i) {
+				Some(opt) => {
+					opt.option_string = ptr::null();
+					opt.extra_info = ptr::null_mut();
+				},
+				None => fail!("Out of bounds for VM arguments!")
+			}
+		}
+
+		self.vm_init_args.n_options = n_options as Jint;
+		self.vm_init_args.options = unsafe_mem;
+	}
+
+	pub fn push_vm_arg(&mut self, index:uint, option:&str) {
+		let size = option.len() + 1;
+		let align = mem::align_of::<*mut i8>();
+
+		let unsafe_mem:*mut u8 = unsafe {
+			allocate(size, align)
+		};
+
+		unsafe {
+			ptr::zero_memory(unsafe_mem, size);
+			ptr::copy_memory(unsafe_mem, option.as_ptr(), size - 1);
+		};
+
+		unsafe {
+			let mut v = CVec::new(self.vm_init_args.options, self.vm_init_args.n_options as uint);
+
+			match v.get_mut(index) {
+				Some(opt) => {
+					opt.option_string = mem::transmute::<_, *const i8>(unsafe_mem);
+				},
+				None => fail!("Out of bounds for VM arguments!")
+			}
+		}
+	}
+
+	pub fn load_jvm(&mut self) -> Result<&mut JNI, String> {
 		assert!(self.is_null());
 
 		let jni_create_java_vm:JNICreateJavaVM = unsafe {
@@ -513,26 +546,34 @@ impl JNI {
 			}
 		};
 
-		for i in range(0u, args.n_options as uint) {
+		let argc:uint = self.vm_init_args.n_options as uint;
+		println!("VM args: {}", argc);
+
+		if argc > 0 {
 			unsafe {
-				let mut v = CVec::new(args.options, args.n_options as uint);
-				let opt = v.get_mut(i);
-				match opt {
-					Some(opt) => {
-						match CString::new(opt.option_string, false).as_str() {
-							Some(s) => println!("VM arg: {:s}", s),
-							None => {}
-						}
-					},
-					None => {}
+				for i in range(0u, argc) {
+					let mut v = CVec::new(self.vm_init_args.options, argc);
+					let opt = v.get_mut(i);
+					match opt {
+						Some(opt) => {
+							match CString::new(opt.option_string, false).as_str() {
+								Some(s) => println!("VM arg: {:s}", s),
+								None => fail!("Out of bounds for VM arguments!")
+							}
+						},
+						None => {}
+					}
 				}
 			}
 		}
 
-		let result = jni_create_java_vm(&mut *self.jvm, &mut *self.env, args);
+		{
+			let args:&JavaVMInitArgs = &(*self.vm_init_args);
+			let result = jni_create_java_vm(&mut *self.jvm, &mut *self.env, args);
 
-		if result != JNI_OK {
-			return Err(format!("Error calling JNI_CreateJavaVM: error code {}", result));
+			if result != JNI_OK {
+				return Err(format!("Error calling JNI_CreateJavaVM: error code {:x}", result));
+			}
 		}
 
 		assert!(!self.is_null());
@@ -601,12 +642,195 @@ impl JNI {
 		unsafe { mem::transmute::<_, Jpointer>(result) }
 	}
 
-	pub fn get_static_method_id(&self, clazz:&Jclass, name:&str, sig:&str) -> JmethodID {
+	pub fn exception_occured(&self) -> Jthrowable {
+		let env = *self.env;
+		
+		let call = unsafe {
+			(*(*env).functions).exception_occured
+		};
+
+		let result:*mut u8 = call(env);
+		unsafe { mem::transmute::<_, Jpointer>(result) }
+	}
+
+	pub fn exception_describe(&self) {
+		let env = *self.env;
+		
+		let call = unsafe {
+			(*(*env).functions).exception_describe
+		};
+
+		call(env)
+	}
+
+	pub fn exception_clear(&self) {
+		let env = *self.env;
+		
+		let call = unsafe {
+			(*(*env).functions).exception_clear
+		};
+
+		call(env)
+	}
+
+	pub fn new_object_a(&self, clazz:Jclass, method:JmethodID, args:&[Jvalue]) -> Jobject {
+		let env = *self.env;
+
+		let call = unsafe {
+			(*(*env).functions).new_object_a
+		};
+
+		let clazz_ptr = unsafe {
+			mem::transmute::<_, *mut u8>(clazz)
+		};
+
+		let method_ptr = unsafe {
+			mem::transmute::<_, *mut u8>(method)
+		};
+
+		let args_ptr = unsafe {
+			mem::transmute::<_, *const u8>(args.as_ptr())
+		};
+
+		println!("NewObjectA with {}", args.len());
+
+		unsafe {
+			mem::transmute::<_, Jpointer>(call(env, clazz_ptr, method_ptr, args_ptr))
+		}
+	}
+
+	pub fn get_method_id(&self, clazz:Jclass, name:&str, sig:&str) -> JmethodID {
+		let env = *self.env;
+
+		let call = unsafe {
+			(*(*env).functions).get_method_id
+		};
+
+		let clazz_ptr = unsafe {
+			mem::transmute::<_, *mut u8>(clazz)
+		};
+
+		println!("method {} {} for class: {:x}", name, sig, clazz);
+
+		unsafe {
+			mem::transmute::<_, Jpointer>(call(env, clazz_ptr, name.to_c_str().as_ptr(), sig.to_c_str().as_ptr()))
+		}
+	}
+
+	pub fn call_object_method_a(&self, obj:Jobject, method:JmethodID, args:&[Jvalue]) -> Jobject {
+		let env = *self.env;
+
+		let call = unsafe {
+			(*(*env).functions).call_object_method_a
+		};
+
+		let obj_ptr = unsafe {
+			mem::transmute::<_, *mut u8>(obj)
+		};
+
+		let method_ptr = unsafe {
+			mem::transmute::<_, *mut u8>(method)
+		};
+
+		let args_ptr = unsafe {
+			mem::transmute::<_, *const u8>(args.as_ptr())
+		};
+
+		unsafe {
+			mem::transmute::<_, Jpointer>(call(env, obj_ptr, method_ptr, args_ptr))
+		}
+	}
+
+	pub fn call_void_method_a(&self, obj:Jobject, method:JmethodID, args:&[Jvalue]) {
+		let env = *self.env;
+
+		let call = unsafe {
+			(*(*env).functions).call_void_method_a
+		};
+
+		let obj_ptr = unsafe {
+			mem::transmute::<_, *mut u8>(obj)
+		};
+
+		let method_ptr = unsafe {
+			mem::transmute::<_, *mut u8>(method)
+		};
+
+		let args_ptr = unsafe {
+			mem::transmute::<_, *const u8>(args.as_ptr())
+		};
+
+		call(env, obj_ptr, method_ptr, args_ptr)
+	}
+
+	pub fn get_static_method_id(&self, clazz:Jclass, name:&str, sig:&str) -> JmethodID {
+		let env = *self.env;
+		
+		let call = unsafe {
+			(*(*env).functions).get_static_method_id
+		};
+
+		let clazz_ptr = unsafe {
+			mem::transmute::<_, *mut u8>(clazz)
+		};
+
+		unsafe {
+			mem::transmute::<_, Jpointer>(call(env, clazz_ptr, name.to_c_str().as_ptr(), sig.to_c_str().as_ptr()))
+		}
+	}
+
+    pub fn call_static_object_method_a(&self, clazz:Jclass, method:JmethodID, args:&[Jvalue]) -> Jobject {
+		let env = *self.env;
+
+		let call = unsafe {
+			(*(*env).functions).call_static_object_method_a
+		};
+
+		let clazz_ptr = unsafe {
+			mem::transmute::<_, *mut u8>(clazz)
+		};
+
+		let method_ptr = unsafe {
+			mem::transmute::<_, *mut u8>(method)
+		};
+
+		let args_ptr = unsafe {
+			mem::transmute::<_, *const u8>(args.as_ptr())
+		};
+
+		unsafe {
+			mem::transmute::<_, Jpointer>(call(env, clazz_ptr, method_ptr, args_ptr))
+		}
+    }
+
+    pub fn call_static_void_method_a(&self, clazz:Jclass, method:JmethodID, args:&[Jvalue]) {
+		let env = *self.env;
+
+		let call = unsafe {
+			(*(*env).functions).call_static_void_method_a
+		};
+
+		let clazz_ptr = unsafe {
+			mem::transmute::<_, *mut u8>(clazz)
+		};
+
+		let method_ptr = unsafe {
+			mem::transmute::<_, *mut u8>(method)
+		};
+
+		let args_ptr = unsafe {
+			mem::transmute::<_, *const u8>(args.as_ptr())
+		};
+
+		call(env, clazz_ptr, method_ptr, args_ptr)
+    }
+
+    pub fn new_string_utf(&self, utf:&str) -> Jstring {
 		let env = *self.env;
 		assert!(!env.is_null());
 		
 		let call = unsafe {
-			(*(*env).functions).get_static_method_id
+			(*(*env).functions).new_string_utf
 		};
 
 		let call_ptr = unsafe {
@@ -615,7 +839,34 @@ impl JNI {
 
 		assert!(!call_ptr.is_null());
 
-		call(env, *clazz, name.to_c_str().as_ptr(), sig.to_c_str().as_ptr())
+		unsafe { mem::transmute::<_, Jpointer>(call(env, utf.to_c_str().as_ptr())) }
+    }
+
+	pub fn new_object_array(&self, len:Jsize, clazz:Jclass, init:Jobject) -> JobjectArray {
+		let env = *self.env;
+		assert!(!env.is_null());
+		
+		let call = unsafe {
+			(*(*env).functions).new_object_array
+		};
+
+		let clazz_ptr = unsafe { mem::transmute::<_, *mut u8>(clazz) };
+		let init_ptr = unsafe { mem::transmute::<_, *mut u8>(init) };
+
+		unsafe { mem::transmute::<_, Jpointer>(call(env, len, clazz_ptr, init_ptr)) }
+	}
+
+	pub fn set_object_array_element(&self, array:JobjectArray, index:Jsize, val:Jobject) {
+		let env = *self.env;
+		
+		let call = unsafe {
+			(*(*env).functions).set_object_array_element
+		};
+
+		let array_ptr = unsafe { mem::transmute::<_, *mut u8>(array) };
+		let val_ptr = unsafe { mem::transmute::<_, *mut u8>(val) };
+
+		call(env, array_ptr, index, val_ptr)
 	}
 
 	pub fn is_null(&self) -> bool {
