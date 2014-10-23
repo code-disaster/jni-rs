@@ -1,4 +1,5 @@
 #![crate_name = "jni"]
+#![feature(macro_rules)]
 
 extern crate alloc;
 extern crate libc;
@@ -9,6 +10,11 @@ use std::c_vec::CVec;
 use std::dynamic_lib::DynamicLibrary;
 use std::mem::{align_of, size_of, transmute};
 use std::ptr;
+
+
+
+pub mod classpath;
+
 
 
 // platform dependent JNI Types (jni_md.h)
