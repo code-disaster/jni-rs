@@ -12,9 +12,7 @@ use std::mem::{align_of, size_of, transmute};
 use std::ptr;
 
 
-
 pub mod classpath;
-
 
 
 // platform dependent JNI Types (jni_md.h)
@@ -29,7 +27,6 @@ pub type Jbyte = i8;
 
 #[cfg(target_arch = "x86_64")]
 pub type Jpointer = u64;
-
 
 
 // JNI Types
@@ -543,9 +540,7 @@ impl JNI {
 		unsafe {
 			ptr::zero_memory(unsafe_mem, size);
 			ptr::copy_memory(unsafe_mem, option.as_ptr(), size - 1);
-		};
 
-		unsafe {
 			let mut v = CVec::new(self.vm_init_args.options, self.vm_init_args.n_options as uint);
 
 			match v.get_mut(index) {
@@ -617,7 +612,9 @@ impl JNI {
 			(*(*env).functions).find_class
 		};
 
-		unsafe { transmute::<_, Jpointer>(call(env, name.to_c_str().as_ptr())) }
+		unsafe {
+			transmute::<_, Jpointer>(call(env, name.to_c_str().as_ptr()))
+		}
 	}
 
 	pub fn exception_occured(&self) -> Jthrowable {
@@ -627,7 +624,9 @@ impl JNI {
 			(*(*env).functions).exception_occured
 		};
 
-		unsafe { transmute::<_, Jpointer>(call(env)) }
+		unsafe {
+			transmute::<_, Jpointer>(call(env))
+		}
 	}
 
 	pub fn exception_describe(&self) {
@@ -805,7 +804,9 @@ impl JNI {
 			(*(*env).functions).new_string_utf
 		};
 
-		unsafe { transmute::<_, Jpointer>(call(env, utf.to_c_str().as_ptr())) }
+		unsafe {
+			transmute::<_, Jpointer>(call(env, utf.to_c_str().as_ptr()))
+		}
     }
 
 	pub fn new_object_array(&self, len:Jsize, clazz:Jclass, init:Jobject) -> JobjectArray {
@@ -815,10 +816,17 @@ impl JNI {
 			(*(*env).functions).new_object_array
 		};
 
-		let clazz_ptr = unsafe { transmute::<_, *mut u8>(clazz) };
-		let init_ptr = unsafe { transmute::<_, *mut u8>(init) };
+		let clazz_ptr = unsafe {
+			transmute::<_, *mut u8>(clazz)
+		};
 
-		unsafe { transmute::<_, Jpointer>(call(env, len, clazz_ptr, init_ptr)) }
+		let init_ptr = unsafe {
+			transmute::<_, *mut u8>(init)
+		};
+
+		unsafe {
+			transmute::<_, Jpointer>(call(env, len, clazz_ptr, init_ptr))
+		}
 	}
 
 	pub fn set_object_array_element(&self, array:JobjectArray, index:Jsize, val:Jobject) {
@@ -828,8 +836,13 @@ impl JNI {
 			(*(*env).functions).set_object_array_element
 		};
 
-		let array_ptr = unsafe { transmute::<_, *mut u8>(array) };
-		let val_ptr = unsafe { transmute::<_, *mut u8>(val) };
+		let array_ptr = unsafe {
+			transmute::<_, *mut u8>(array)
+		};
+
+		let val_ptr = unsafe {
+			transmute::<_, *mut u8>(val)
+		};
 
 		call(env, array_ptr, index, val_ptr)
 	}
