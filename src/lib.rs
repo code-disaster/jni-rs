@@ -522,7 +522,7 @@ impl JNI {
                     opt.option_string = ptr::null();
                     opt.extra_info = ptr::null_mut();
                 },
-                None => fail!("Out of bounds for VM arguments!")
+                None => panic!("Out of bounds for VM arguments!")
             }
         }
 
@@ -551,7 +551,7 @@ impl JNI {
                     let len:Jpointer = size as Jpointer;
                     opt.extra_info = transmute::<_, *mut u8>(len);
                 },
-                None => fail!("Out of bounds for VM arguments!")
+                None => panic!("Out of bounds for VM arguments!")
             }
         }
     }
