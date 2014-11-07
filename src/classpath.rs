@@ -1,6 +1,8 @@
 
-use {JNI, Jclass, JmethodID, Jpointer};
+use {JNI, Jclass, JmethodID, Jpointer, JNI_NULL};
 
+
+/// macro to simplify exception checks and return value validation
 macro_rules! check_exception_and_result(
     ($jni:expr, $pointer:expr) => {
         match check_exception_and_result($jni, $pointer) {
@@ -10,8 +12,17 @@ macro_rules! check_exception_and_result(
     }
 )
 
-/// reference: http://stackoverflow.com/questions/20328012/c-plugin-jni-java-classpath
 pub fn load_static_method(jni:&JNI, classpath_url:&str, class_name:&str) -> (Jclass, JmethodID) {
+
+    //! Method to retrieve 'static void main(String[] args)' from a user-defined class path.
+    //! The original 'packr' passes "-Djava.class.path=<path-to-jar>" as an argument during
+    //! initialization of the JVM. For some reason this didn't work for me.
+    //!
+    //! This method uses JNI on java.lang|net.* classes (which are accessible thanks to the
+    //! bootstrap classpath) to instantiate a custom URLClassLoader, point it to the user JAR,
+    //! then use this classloader to access the correct class' main() method.
+    //!
+    //! Reference: http://stackoverflow.com/questions/20328012/c-plugin-jni-java-classpath
 
     'exit: loop {
 
@@ -91,7 +102,7 @@ pub fn load_static_method(jni:&JNI, classpath_url:&str, class_name:&str) -> (Jcl
         return (main_class, main_method);
     }
 
-    (0u64, 0u64)
+    (JNI_NULL, JNI_NULL)
 }
 
 fn check_exception_and_result(jni:&JNI, pointer:Jpointer) -> bool {

@@ -28,6 +28,8 @@ pub type Jbyte = i8;
 #[cfg(target_arch = "x86_64")]
 pub type Jpointer = u64;
 
+#[cfg(target_arch = "x86_64")]
+pub const JNI_NULL:Jpointer     = 0u64;
 
 // JNI Types
 
@@ -61,7 +63,6 @@ pub type Jvalue = Jobject; // union in C/C++
 
 pub type JfieldID = Jpointer;
 pub type JmethodID = Jpointer;
-
 
 pub enum JobjectRefType {
     JNIInvalidRefType           = 0,
