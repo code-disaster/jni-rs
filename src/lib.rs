@@ -1,19 +1,16 @@
 #![crate_name = "jni"]
-#![feature(macro_rules)]
 
 extern crate alloc;
 extern crate libc;
 
 use alloc::heap::{allocate, deallocate};
 use libc::{c_char, c_long, c_longlong, c_void};
-use std::c_vec::CVec;
 use std::dynamic_lib::DynamicLibrary;
+use std::ffi::CString;
 use std::mem::{align_of, size_of, transmute};
 use std::ptr;
 
-
 pub mod classpath;
-
 
 // platform dependent JNI Types (jni_md.h)
 
@@ -64,6 +61,7 @@ pub type Jvalue = Jobject; // union in C/C++
 pub type JfieldID = Jpointer;
 pub type JmethodID = Jpointer;
 
+#[derive(Copy)]
 pub enum JobjectRefType {
     JNIInvalidRefType           = 0,
     JNILocalRefType             = 1,
@@ -480,6 +478,7 @@ type JNICreateJavaVM = extern "C" fn(*mut(*mut JavaVM), *mut(*mut JNIEnv), *cons
 pub struct JNI {
     libjvm:DynamicLibrary,
     vm_init_args:Box<JavaVMInitArgs>,
+    vm_options:Vec<JavaVMOption>,
     jvm:Box<*mut JavaVM>,
     env:Box<*mut JNIEnv>
 }
@@ -499,22 +498,18 @@ impl JNI {
                 options: ptr::null_mut(),
                 ignore_unrecognized: JNI_FALSE
             },
+            vm_options: Vec::new(),
             jvm: box ptr::null_mut(),
             env: box ptr::null_mut()
         })
     }
 
     pub fn init_vm_args(&mut self, n_options:uint) {
-        let size = size_of::<JavaVMOption>();
-        let align = align_of::<*mut JavaVMOption>();
+        let mut v:Vec<JavaVMOption> = Vec::with_capacity(n_options);
 
-        let unsafe_mem:*mut JavaVMOption = unsafe {
-            transmute::<_, *mut JavaVMOption>(allocate(n_options * size, align))
-        };
-
-        let mut v:CVec<JavaVMOption> = unsafe {
-            CVec::new(unsafe_mem, n_options)
-        };
+        unsafe {
+            v.set_len(n_options);
+        }
 
         for i in range(0u, n_options) {
             match v.get_mut(i) {
@@ -527,7 +522,8 @@ impl JNI {
         }
 
         self.vm_init_args.n_options = n_options as Jint;
-        self.vm_init_args.options = unsafe_mem;
+        self.vm_init_args.options = v.as_mut_ptr();
+        self.vm_options = v;
     }
 
     pub fn push_vm_arg(&mut self, index:uint, option:&str) {
@@ -542,7 +538,7 @@ impl JNI {
             ptr::zero_memory(unsafe_mem, size);
             ptr::copy_memory(unsafe_mem, option.as_ptr(), size - 1);
 
-            let mut v = CVec::new(self.vm_init_args.options, self.vm_init_args.n_options as uint);
+            let ref mut v:Vec<JavaVMOption> = self.vm_options;
 
             match v.get_mut(index) {
                 Some(opt) => {
@@ -613,8 +609,10 @@ impl JNI {
             (*(*env).functions).find_class
         };
 
+        let name_ptr = CString::from_slice(name.as_bytes());
+
         unsafe {
-            transmute::<_, Jpointer>(call(env, name.to_c_str().as_ptr()))
+            transmute::<_, Jpointer>(call(env, name_ptr.as_ptr()))
         }
     }
 
@@ -685,8 +683,12 @@ impl JNI {
             transmute::<_, *mut u8>(clazz)
         };
 
+        let name_ptr = CString::from_slice(name.as_bytes());
+
+        let sig_ptr = CString::from_slice(sig.as_bytes());
+
         unsafe {
-            transmute::<_, Jpointer>(call(env, clazz_ptr, name.to_c_str().as_ptr(), sig.to_c_str().as_ptr()))
+            transmute::<_, Jpointer>(call(env, clazz_ptr, name_ptr.as_ptr(), sig_ptr.as_ptr()))
         }
     }
 
@@ -747,8 +749,12 @@ impl JNI {
             transmute::<_, *mut u8>(clazz)
         };
 
+        let name_ptr = CString::from_slice(name.as_bytes());
+
+        let sig_ptr = CString::from_slice(sig.as_bytes());
+
         unsafe {
-            transmute::<_, Jpointer>(call(env, clazz_ptr, name.to_c_str().as_ptr(), sig.to_c_str().as_ptr()))
+            transmute::<_, Jpointer>(call(env, clazz_ptr, name_ptr.as_ptr(), sig_ptr.as_ptr()))
         }
     }
 
@@ -805,8 +811,10 @@ impl JNI {
             (*(*env).functions).new_string_utf
         };
 
+        let utf_ptr = CString::from_slice(utf.as_bytes());
+
         unsafe {
-            transmute::<_, Jpointer>(call(env, utf.to_c_str().as_ptr()))
+            transmute::<_, Jpointer>(call(env, utf_ptr.as_ptr()))
         }
     }
 

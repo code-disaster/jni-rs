@@ -6,11 +6,11 @@ use {JNI, Jclass, JmethodID, Jpointer, JNI_NULL};
 macro_rules! check_exception_and_result(
     ($jni:expr, $pointer:expr) => {
         match check_exception_and_result($jni, $pointer) {
-            true => { println!("Invalid return value at line {}", line!()); break; },
+            true => { println!("classpath exception: Invalid return value at line {}", line!()); break; },
             false => {}
         }
     }
-)
+);
 
 pub fn load_static_method(jni:&JNI, classpath_url:&str, class_name:&str) -> (Jclass, JmethodID) {
 
@@ -37,7 +37,7 @@ pub fn load_static_method(jni:&JNI, classpath_url:&str, class_name:&str) -> (Jcl
         let url_str = jni.new_string_utf(classpath_url);
         check_exception_and_result!(jni, url_str);
 
-        let url = jni.new_object_a(url_class, url_ctor, [url_str]);
+        let url = jni.new_object_a(url_class, url_ctor, &[url_str]);
         check_exception_and_result!(jni, url);
 
         // url => [url]
@@ -52,7 +52,7 @@ pub fn load_static_method(jni:&JNI, classpath_url:&str, class_name:&str) -> (Jcl
         let thread_get_current = jni.get_static_method_id(thread_class, "currentThread", "()Ljava/lang/Thread;");
         check_exception_and_result!(jni, thread_get_current);
 
-        let thread = jni.call_static_object_method_a(thread_class, thread_get_current, []);
+        let thread = jni.call_static_object_method_a(thread_class, thread_get_current, &[]);
         check_exception_and_result!(jni, thread);
 
         // ClassLoader contextClassLoader = thread.getContextClassLoader();
@@ -62,7 +62,7 @@ pub fn load_static_method(jni:&JNI, classpath_url:&str, class_name:&str) -> (Jcl
 
         //let loader_class = jni.find_class("java/lang/ClassLoader");
 
-        let loader = jni.call_object_method_a(thread, thread_get_loader, []);
+        let loader = jni.call_object_method_a(thread, thread_get_loader, &[]);
         check_exception_and_result!(jni, loader);
 
         // ClassLoader urlClassLoader = URLClassLoader.newInstance(url, contextClassLoader);
@@ -73,7 +73,7 @@ pub fn load_static_method(jni:&JNI, classpath_url:&str, class_name:&str) -> (Jcl
         let url_loader_newinstance = jni.get_static_method_id(url_loader_class, "newInstance", "([Ljava/net/URL;Ljava/lang/ClassLoader;)Ljava/net/URLClassLoader;");
         check_exception_and_result!(jni, url_loader_newinstance);
 
-        let url_loader = jni.call_static_object_method_a(url_loader_class, url_loader_newinstance, [url_array, loader]);
+        let url_loader = jni.call_static_object_method_a(url_loader_class, url_loader_newinstance, &[url_array, loader]);
         check_exception_and_result!(jni, url_loader);
 
         // thread.setContextClassLoader(urlClassLoader);
@@ -81,7 +81,7 @@ pub fn load_static_method(jni:&JNI, classpath_url:&str, class_name:&str) -> (Jcl
         let thread_set_loader = jni.get_method_id(thread_class, "setContextClassLoader", "(Ljava/lang/ClassLoader;)V");
         check_exception_and_result!(jni, thread_set_loader);
 
-        jni.call_void_method_a(thread, thread_set_loader, [url_loader]);
+        jni.call_void_method_a(thread, thread_set_loader, &[url_loader]);
 
         // Class<?> mainClass = urlClassLoader.loadClass(<main-class-name>)
 
@@ -91,7 +91,7 @@ pub fn load_static_method(jni:&JNI, classpath_url:&str, class_name:&str) -> (Jcl
         let main_class_name_utf = jni.new_string_utf(class_name);
         check_exception_and_result!(jni, main_class_name_utf);
 
-        let main_class = jni.call_object_method_a(url_loader, load_class, [main_class_name_utf]);
+        let main_class = jni.call_object_method_a(url_loader, load_class, &[main_class_name_utf]);
         check_exception_and_result!(jni, main_class) ;
 
         // method: 'void main(String[])'
