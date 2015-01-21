@@ -411,7 +411,7 @@ struct JavaVMOption {
 
 impl Drop for JavaVMOption {
     fn drop(&mut self) {
-        let size = self.extra_info as uint;
+        let size = self.extra_info as usize;
         let align = align_of::<*mut i8>();
 
         unsafe {
@@ -434,7 +434,7 @@ impl Drop for JavaVMInitArgs {
         let align = align_of::<*mut JavaVMOption>();
 
         unsafe {
-            deallocate(transmute::<_, *mut u8>(self.options), self.n_options as uint * size, align)
+            deallocate(transmute::<_, *mut u8>(self.options), self.n_options as usize * size, align)
         };
     }
 }
@@ -492,26 +492,26 @@ impl JNI {
 
         Ok(JNI {
             libjvm: libjvm,
-            vm_init_args: box JavaVMInitArgs {
+            vm_init_args: Box::new(JavaVMInitArgs {
                 version: JNI_VERSION_1_6,
                 n_options: 0,
                 options: ptr::null_mut(),
                 ignore_unrecognized: JNI_FALSE
-            },
+            }),
             vm_options: Vec::new(),
-            jvm: box ptr::null_mut(),
-            env: box ptr::null_mut()
+            jvm: Box::new(ptr::null_mut()),
+            env: Box::new(ptr::null_mut())
         })
     }
 
-    pub fn init_vm_args(&mut self, n_options:uint) {
+    pub fn init_vm_args(&mut self, n_options:usize) {
         let mut v:Vec<JavaVMOption> = Vec::with_capacity(n_options);
 
         unsafe {
             v.set_len(n_options);
         }
 
-        for i in range(0u, n_options) {
+        for i in range(0, n_options) {
             match v.get_mut(i) {
                 Some(opt) => {
                     opt.option_string = ptr::null();
@@ -526,7 +526,7 @@ impl JNI {
         self.vm_options = v;
     }
 
-    pub fn push_vm_arg(&mut self, index:uint, option:&str) {
+    pub fn push_vm_arg(&mut self, index:usize, option:&str) {
         let size = option.len() + 1;
         let align = align_of::<*mut i8>();
 
