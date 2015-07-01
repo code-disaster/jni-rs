@@ -3,3 +3,7 @@
 name = "jni"
 version = "0.0.1"
 authors = ["Daniel Ludwig <codi@code-disaster.com>"]
+
+[dependencies]
+libc = "0.1.8"
+shared_library = "0.1.0"
