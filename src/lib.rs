@@ -28,6 +28,10 @@ pub struct JNI {
 
 impl Drop for JNI {
     fn drop(&mut self) {
+        println!("Destroying JVM instance ...");
+        if !self.jvm.is_null() {
+            ffi::destroy_java_vm(*self.jvm);
+        }
         ffi::free_jvm_options(&self.vm_options);
         ffi::free_jvm_init_args(&(*self.vm_init_args));
     }
@@ -121,5 +125,11 @@ impl JNI {
         }
 
         Ok(self)
+    }
+
+    pub fn get_env(&mut self) -> &mut JNIEnv {
+        unsafe {
+            &mut (*(*self.env))
+        }
     }
 }
