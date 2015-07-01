@@ -33,7 +33,6 @@ impl Drop for JNI {
             ffi::destroy_java_vm(*self.jvm);
         }
         ffi::free_jvm_options(&self.vm_options);
-        ffi::free_jvm_init_args(&(*self.vm_init_args));
     }
 }
 

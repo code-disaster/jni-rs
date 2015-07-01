@@ -351,12 +351,6 @@ pub struct JavaVMInitArgs {
     pub ignore_unrecognized: Jboolean
 }
 
-pub fn free_jvm_init_args(args: &JavaVMInitArgs) {
-    unsafe {
-        free(transmute::<_, *mut c_void>(args.options))
-    };
-}
-
 //#[repr(C)]
 //struct JavaVMAttachArgs {
 //  version: Jint,
