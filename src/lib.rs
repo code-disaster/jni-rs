@@ -126,6 +126,12 @@ impl JNI {
         Ok(self)
     }
 
+    pub fn get_jvm(&mut self) -> &mut JavaVM {
+        unsafe {
+            &mut (*(*self.jvm))
+        }
+    }
+
     pub fn get_env(&mut self) -> &mut JNIEnv {
         unsafe {
             &mut (*(*self.env))

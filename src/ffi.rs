@@ -4,7 +4,7 @@ use std::ffi::CString;
 use std::mem::transmute;
 use std::ptr;
 
-//use consts::*;
+use consts::*;
 use types::*;
 
 //#[repr(C)]
@@ -57,7 +57,7 @@ struct JNINativeInterface {
     new_object_v: fn() -> *mut u8, // not implemented
     new_object_a: fn(env:*mut JNIEnv, clazz:Jclass, method:JmethodID, args:*const Jvalue) -> Jobject,
 
-    get_object_class: fn() -> *mut u8, // not implemented
+    get_object_class: fn(env:*mut JNIEnv, obj:Jobject) -> Jclass,
     is_instance_of: fn() -> *mut u8, // not implemented
 
     get_method_id: fn(env:*mut JNIEnv, clazz:Jclass, name:*const c_char, sig:*const c_char) -> JmethodID,
@@ -366,7 +366,7 @@ pub struct JNIInvokeInterface {
     reserved2: *mut c_void,
 
     destroy_java_vm: fn(vm:*mut JavaVM) -> Jint,
-    attach_current_thread: fn(vm:*mut JavaVM, env:*mut(*mut c_void), args:*mut c_void) -> Jint,
+    attach_current_thread: fn(vm:*mut JavaVM, env:*mut(*mut JNIEnv), args:*mut c_void) -> Jint,
     detach_current_thread: fn(vm:*mut JavaVM) -> Jint, // not implemented
     get_env: fn(vm:*mut JavaVM, env:*mut (*mut c_void), version:Jint) -> Jint, // not implemented
     attach_current_thread_as_daemon: fn(vm:*mut JavaVM, env:*mut (*mut c_void), args:*mut c_void) -> Jint // not implemented
@@ -385,16 +385,20 @@ pub fn destroy_java_vm(jvm:*mut JavaVM) -> Jint {
     call(jvm)
 }
 
-pub fn attach_current_thread(jvm:*mut JavaVM, env:*mut JNIEnv) -> Jint {
+pub fn attach_current_thread(jvm:*mut JavaVM) -> (Jint, *mut JNIEnv) {
     let call = unsafe {
         (*(*jvm).functions).attach_current_thread
     };
 
-    let env_ptr = unsafe {
-        transmute::<_, *mut (*mut c_void)>(env)
-    };
+    let local_env:u64 = 0;
+    let mut env_ptr = local_env as *mut JNIEnv;
 
-    call(jvm, env_ptr, ptr::null_mut())
+    let result = call(jvm, &mut env_ptr, ptr::null_mut());
+
+    match result {
+        JNI_OK => (result, env_ptr),
+        _ => (result, JNI_NULL as *mut JNIEnv)
+    }
 }
 
 pub fn get_version(env:*mut JNIEnv) -> Jint {
@@ -449,6 +453,14 @@ pub fn new_object_a(env:*mut JNIEnv, clazz:Jclass, method:JmethodID, args:&[Jval
     };
 
     call(env, clazz, method, args_ptr)
+}
+
+pub fn get_object_class(env:*mut JNIEnv, obj:Jobject) -> Jclass {
+    let call = unsafe {
+        (*(*env).functions).get_object_class
+    };
+
+    call(env, obj)
 }
 
 pub fn get_method_id(env:*mut JNIEnv, clazz:Jclass, name:&str, sig:&str) -> JmethodID {
