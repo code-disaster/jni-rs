@@ -92,7 +92,7 @@ impl JNI {
 
         unsafe {
             ptr::write_bytes(unsafe_mem, 0, size);
-            ptr::copy_nonoverlapping(option.as_ptr(), unsafe_mem, size);
+            ptr::copy_nonoverlapping(option.as_ptr(), unsafe_mem, size - 1);
 
             let ref mut v:Vec<JavaVMOption> = self.vm_options;
 
